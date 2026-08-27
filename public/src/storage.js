@@ -1,0 +1,6 @@
+const DB='vores-ferie-v1';
+let database;
+function open(){return database||(database=new Promise((resolve,reject)=>{const req=indexedDB.open(DB,1);req.onupgradeneeded=()=>req.result.createObjectStore('archive');req.onerror=()=>reject(Error('Browserlageret kunne ikke åbnes. Tillad lokal lagring i browseren.'));req.onsuccess=()=>resolve(req.result);}));}
+export async function readRecord(){const db=await open();return new Promise((resolve,reject)=>{const req=db.transaction('archive').objectStore('archive').get('state');req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
+export async function writeRecord(payload,expectedRevision){const db=await open();return new Promise((resolve,reject)=>{const tx=db.transaction('archive','readwrite'),store=tx.objectStore('archive'),req=store.get('state');let conflict=false;req.onsuccess=()=>{if((req.result?.revision||0)!==expectedRevision){conflict=true;tx.abort();return;}store.put({revision:expectedRevision+1,payload},'state');};tx.oncomplete=()=>resolve(expectedRevision+1);tx.onabort=tx.onerror=()=>reject(Error(conflict?'Arkivet er ændret i en anden fane. Genindlæs siden før du fortsætter.':'Kunne ikke gemme. Dit tidligere arkiv er bevaret. Kontrollér ledig lagerplads.'));});}
+export async function storageInfo(){try{return await navigator.storage.estimate();}catch{return {};}}
